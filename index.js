@@ -8,14 +8,24 @@ const ARGV = process.argv;
 const DIRNAME = __dirname + '/static';
 const BASE_URL = ARGV[2];
 
+// 替换 console
+const { log, warn, info } = console;
+Object.assign(global.console, {
+  log: (...args) => log('[log]', ...args),
+  warn: (...args) => warn('\x1b[33m%s\x1b[0m', '[warn]', ...args),
+  info: (...args) => info('\x1b[34m%s\x1b[0m', '[info]', ...args),
+  error: (...args) => info('\x1b[31m%s\x1b[0m', '[error]', ...args)
+});
+
 if (ARGV.length <= 2) {
-  console.log('请输入url： -url');
+  console.error('请输入url');
   return;
 }
-
 //入口程序
 const start = async url => {
+  console.info('开始获取目录');
   const menuHtml = await fetch(url);
+  console.info('获取目录成功');
   const $ = cheerio.load(menuHtml);
   const title = $('.jieshao .rt h1').text();
   const author = $('.jieshao .rt .msg em:nth-child(1)')
@@ -24,22 +34,25 @@ const start = async url => {
     .replace(' ', '');
   const menuList = toArr($('.mulu li a'));
   const fileName = `《${title}》${author}-${Date.now()}.txt`;
+  console.info('开始获取文章');
   const chaptersHtml = await Promise.all(
     menuList.map(async v => await fetch(v))
   );
+  console.info('获取文章成功');
   const chapters = chaptersHtml.map(v => joint(v));
   const novelText = chapters.join('\n');
   write(novelText, fileName);
 };
-
 //获取
 const fetch = async url => {
   return new Promise((resolve, reject) => {
     request
       .get(url)
       .charset('gbk')
+      .buffer(true)
       .end((err, res) => {
         if (err) {
+          console.error('获取失败');
           reject(err);
         }
         resolve(res.text);
@@ -70,16 +83,16 @@ const joint = html => {
 
 //文件夹处理
 const write = (text, fileName) => {
-  console.log('=================开始写入文件================');
+  console.info('开始下载文件');
   //检查文件是否存在
   fs.exists(DIRNAME, exists => {
     if (!exists) {
       fs.mkdir(DIRNAME, err => {
         if (!err) {
-          console.log('================新建文件夹成功==============', err);
+          console.info('新建文件夹成功', err);
           writeFile(text, fileName);
         } else {
-          console.log('================新建文件夹失败==============', err);
+          console.info('新建文件夹失败', err);
         }
       });
     } else {
@@ -90,11 +103,12 @@ const write = (text, fileName) => {
 
 //写入文件
 const writeFile = (text, fileName) => {
-  fs.writeFile(`${DIRNAME}/${fileName}`, text, function(err) {
+  fs.writeFile(`${DIRNAME}/${fileName}`, text, err => {
     if (err) {
-      console.log('=================写入失败===========', err);
+      console.info('下载失败', err);
     } else {
-      console.log('===============写入成功============' + fileName);
+      console.info('下载成功');
+      console.info(fileName);
     }
   });
 };
